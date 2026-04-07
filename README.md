@@ -1,3 +1,14 @@
+---
+title: CodeCompleteEnv
+emoji: 💻
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+tags:
+  - openenv
+---
+
 # CodeCompleteEnv
 
 > A production-ready **OpenEnv** reinforcement-learning environment where an AI agent learns **contextual Python code autocomplete** through dense rewards from syntax correctness, test passing, style matching, and simulated user feedback.
