@@ -1,0 +1,19 @@
+name: code_complete_env
+description: >
+  Reinforcement-learning environment for contextual code autocomplete.
+  An AI agent learns to complete Python code using dense rewards from
+  AST validity, test passing, style matching, and simulated user feedback.
+entry_point: "env.environment:CodeCompleteEnv"
+
+tasks:
+  - name: easy_expression_complete
+    difficulty: easy
+    description: "Complete a missing return expression in a simple function"
+
+  - name: medium_function_body
+    difficulty: medium
+    description: "Generate a complete function body from signature and docstring"
+
+  - name: hard_refactor
+    difficulty: hard
+    description: "Refactor code by renaming a function and updating all references"
