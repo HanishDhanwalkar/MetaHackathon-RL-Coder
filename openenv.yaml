@@ -1,0 +1,7 @@
+name: "CRA-Environment"
+version: "1.0.0"
+description: "Contextual Reinforcement Autocomplete"
+entrypoint: "src.server:app"  # Points to the FastAPI app
+tasks:
+  - id: "line-completion"
+    difficulty: "easy"

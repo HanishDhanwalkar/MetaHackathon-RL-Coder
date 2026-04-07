@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sovereign IDE - RL MVP</title>
+    <style>#editor { width: 100vw; height: 100vh; }</style>
+</head>
+<body>
+    <div id="editor"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <script>
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            const editor = monaco.editor.create(document.getElementById('editor'), {
+                value: "# Sovereign Agentic IDE\n",
+                language: 'python',
+                theme: 'vs-dark',
+                inlineSuggest: { enabled: true }
+            });
+
+            monaco.languages.registerInlineCompletionsProvider('python', {
+                provideInlineCompletions: async (model, position) => {
+                    const response = await fetch('/predict', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: model.getValue() })
+                    });
+                    const data = await response.json();
+                    return {
+                        items: [{
+                            insertText: data.completion,
+                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column)
+                        }]
+                    };
+                }
+            });
+        });
+    </script>
+</body>
+</html>
