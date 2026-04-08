@@ -10,5 +10,5 @@ COPY . .
 # Expose ports for OpenEnv and the IDE
 EXPOSE 7860
 
-# Launch both servers in the background
-CMD ["uvicorn", "src.server:app", "--reload", "--host", "0.0.0.0", "--port", "7860"]
+# Production start command for HF Spaces
+CMD ["sh", "-c", "uvicorn src.server:app --host 0.0.0.0 --port ${PORT:-7860}"]

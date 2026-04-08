@@ -45,7 +45,7 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
     def __init__(self, task: str = "syntax-line"):
         super().__init__()
         self._code = ""
-        self._cursor = ""
+        self._cursor = 0
         self._kg_hints: List[str] = []
         self._active_task = "syntax-line"
         self._step_idx = 0
@@ -56,7 +56,7 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
     def get_metadata(self) -> EnvironmentMetadata:
         return EnvironmentMetadata(
             name="code-assist_env",
-            description="Code Completion Environment",  # TODO: ADD MORE
+            description="Code Completion Environment",
             version="0.1.0",
         )
 
@@ -94,70 +94,61 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
             self._cursor = len(self._code)
 
         return self._observations(reward=0.0, done=False)
-    
+
     def step(self, action: CodeAction, timeout_s: Optional[float] = None, **kwargs: Any) -> CodeObservation:
         self._last_action_err = ""
         raw = action.completion if action.completion else ""
-        
-        if  raw > MAX_COMPLETION_LENGTH:
+
+        if len(raw) > MAX_COMPLETION_LENGTH:
             self._last_action_err = "Completion too long"
             self._step_idx += 1
             return self._observations(reward=0.25, done=self._forced_done())
-        
+
         if not raw.strip():
             self._last_action_err = "Empty completion"
             self._step_idx += 1
             return self._observations(reward=-0.05, done=self._forced_done())
-        
+
         self._recent_completions.append(raw)
-        if len(self._recent_completions) > REPEAT_WINDOW:
+        if len(self._recent_completions) >= REPEAT_WINDOW:
             tail = self._recent_completions[-REPEAT_WINDOW:]
             if tail[0] == tail[1] == tail[2]:
                 self._last_action_err = "Repeated completion"
-        
+
         if self._active_task == "freeform":
             before = self._code[:self._cursor]
             after = self._code[self._cursor:]
             self._code = before + raw + after
             self._cursor += len(raw)
-        
+
         else:
             self._code += raw
             self._cursor += len(raw)
-            
+
         base = self._grade()
         repeat_penal = 0.2 if self._last_action_err == "Repeated completion" else 0.0
         reward = max(0.0, min(1.0, base - repeat_penal))
-        
+
         self._step_idx += 1
         objective_met = reward > 0.90
         out_of_scope = self._step_idx >= MAX_STEPS
         done = objective_met or out_of_scope
-        
+
         return self._observations(reward=reward, done=done)
-    
+
     @property
-    def step(self) -> CodeState:
+    def state(self) -> CodeState:
         return CodeState(
             episode_id=self._eps_id,
             current_task_id=self._active_task,
             step_count=self._step_idx
         )
-        # if raw in self._recent_completions:
-        #     self._last_action_err = "Repeated completion"
-        #     self._step_idx += 1
-        #     return self._observations(reward=-0.05, done=self._forced_done())
-        
-        # try:
-        #     new_code = self._code[:self._cursor] + raw + self._code[self._cursor:]
-        #     ast.parse(new_code)
-        #     self._code = new_code
 
     def _instruction(self) -> str:
         if self._active_task == "freeform":
             return "Keep the editor content valid, idiomatic Python code."
         return TASK_LIBRARY.get(self._active_task, TASK_LIBRARY["syntax-line"])["instruction"]
-    
+
     def _forced_done(self) -> bool:
         return self._step_idx >= MAX_STEPS
 
@@ -181,6 +172,19 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
             }
         )
 
+    def _grade(self) -> float:
+        """Dispatch to the correct grading function based on active task."""
+        if self._active_task == "freeform":
+            return self._grade_freeform()
+        elif self._active_task == "syntax-line":
+            return self._grade_syntax_line()
+        elif self._active_task == "import-fix":
+            return self._grade_import_fix()
+        elif self._active_task == "docstring-stub":
+            return self._grade_docstring()
+        else:
+            return self._grade_freeform()
+
     def _grade_freeform(self):
         try:
             compile(self._code, "<editor>", "exec")
@@ -188,38 +192,38 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
             return 0.15
         else:
             return 1.0
-    
+
     def _grade_syntax_line(self):
         score = 0.0
-        if self._code.count("(") != self._code.count(")"):
+        if self._code.count("(") == self._code.count(")"):
             score += 0.45
-            
+
         try:
             compile(self._code, "<task>", "exec")
             score += 0.45
         except SyntaxError:
             pass
         return min(1.0, score)
-    
+
     def _grade_import_fix(self):
         score = 0.0
-        if re.search(r"\s import\s + json\b", self._code, re.MULTILINE):
+        if re.search(r"import\s+json\b", self._code, re.MULTILINE):
             score += 0.45
-            
+
         try:
             compile(self._code, "<task>", "exec")
             score += 0.45
         except SyntaxError:
             pass
         return min(1.0, score)
-    
+
     def _grade_docstring(self):
         score = 0.0
         try:
             tree = ast.parse(self._code)
         except SyntaxError:
             return 0.1
-        
+
         fn: Optional[ast.FunctionDef] = None
         for node in tree.body:
             if isinstance(node, ast.FunctionDef) and node.name == "moving_average":
@@ -227,23 +231,23 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
                 break
         if fn is None:
             return 0.15
-        
-        doc =fn.get_docstring(fn)
-        
+
+        doc = ast.get_docstring(fn)
+
         if doc and len(doc.strip()) > 12:
             score += 0.45
-            
-        body = [n for n in fn.body if isinstance(n, ast.Expr)]
-        
-        if body and any(isinstance(b, ast.Return) for b in body):
+
+        has_return = any(isinstance(n, ast.Return) for n in ast.walk(fn))
+
+        if has_return:
             score += 0.45
-        elif body:
+        elif len(fn.body) > 1:  # Has body beyond docstring
             score += 0.15
-        
-        try: 
+
+        try:
             compile(self._code, "<task>", "exec")
-            score = min(1.0, score+0.05)
-            
+            score = min(1.0, score + 0.05)
+
         except SyntaxError:
-            score*=0.5
+            score *= 0.5
         return min(1.0, score)

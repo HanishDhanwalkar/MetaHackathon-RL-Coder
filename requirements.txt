@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 jinja2
-openenv
-ollama
+openenv-core
+# ollama  # Commented out: replaced with OpenAI
+openai
 python-dotenv

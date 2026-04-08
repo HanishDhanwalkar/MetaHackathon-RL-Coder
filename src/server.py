@@ -12,7 +12,7 @@ from .code_assist_env import CodeAssistEnv
 from .models import CodeAction, CodeObservation
 
 _root = Path(__file__).parent
-_static = _root / "static"
+_static = _root.parent / "static"
 
 app = create_fastapi_app(
     CodeAssistEnv,
@@ -29,7 +29,7 @@ class WorkspaceSync(BaseModel):
     
 @app.get("/", include_in_schema=False)
 async def ide_root():
-    return FileResponse(_root / "static" / "index.html")
+    return FileResponse(_static / "index.html")
 
 @app.post("/workspace/sync")
 async def workspace_sync(data: WorkspaceSync):
@@ -54,8 +54,10 @@ if _static.is_dir():
 def main() -> None:
     import uvicorn
     # Port 7860 is required for HF Spaces
-    port = os.environ.get("PORT", 7860)
-    uvicorn.run(app, host="0.0.0.0", port=port, reload=True)
+    port = int(os.environ.get("PORT", "7860"))
+    # Disable reload in production containers (HF Spaces).
+    reload_enabled = os.environ.get("RELOAD", "").lower() in {"1", "true", "yes"}
+    uvicorn.run("src.server:app", host="0.0.0.0", port=port, reload=reload_enabled)
     
 if __name__ == "__main__":
     main()

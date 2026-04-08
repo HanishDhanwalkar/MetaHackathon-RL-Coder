@@ -3,69 +3,485 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Sovereign RL IDE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CodeComplete — RL-Powered IDE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        html,
-        body {
-            margin: 0;
-            height: 100%;
-            font-family: system-ui, sans-serif;
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-deep: #0a0e17;
+            --bg-surface: #111827;
+            --bg-elevated: #1a2235;
+            --border-subtle: rgba(255,255,255,0.06);
+            --border-accent: rgba(99,179,237,0.25);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #60a5fa;
+            --accent-cyan: #22d3ee;
+            --accent-emerald: #34d399;
+            --accent-violet: #a78bfa;
+            --accent-amber: #fbbf24;
+            --accent-rose: #fb7185;
+            --glow-blue: rgba(96,165,250,0.15);
+            --glow-emerald: rgba(52,211,153,0.15);
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --header-h: 52px;
+            --statusbar-h: 30px;
         }
 
-        #bar {
+        html, body {
+            height: 100%;
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        /* ─── Top Header Bar ─── */
+        #header {
+            height: var(--header-h);
             display: flex;
             align-items: center;
-            gap: 1rem;
-            padding: 0.35rem 0.75rem;
-            font-size: 12px;
-            background: #1e1e1e;
-            color: #c8c8c8;
-            border-bottom: 1px solid #333;
+            justify-content: space-between;
+            padding: 0 16px;
+            background: linear-gradient(135deg, rgba(17,24,39,0.95), rgba(15,23,42,0.95));
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            position: relative;
+            z-index: 10;
         }
 
-        #bar strong {
-            color: #7ee787;
+        #header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-blue), var(--accent-cyan), var(--accent-emerald), transparent);
+            opacity: 0.4;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-violet));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 0 20px rgba(96,165,250,0.3);
+        }
+
+        .logo-text {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-badge {
+            font-size: 9px;
             font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 20px;
+            background: rgba(167,139,250,0.15);
+            color: var(--accent-violet);
+            border: 1px solid rgba(167,139,250,0.2);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
 
-        #bar span.kg-major {
-            color: #79c0ff;
+        .divider {
+            width: 1px;
+            height: 20px;
+            background: var(--border-subtle);
+            margin: 0 4px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ─── Stat Pill Components ─── */
+        .stat-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            font-family: var(--font-mono);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .stat-pill:hover {
+            background: rgba(255,255,255,0.07);
+            border-color: rgba(255,255,255,0.1);
+        }
+
+        .stat-pill .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .stat-pill .dot.pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+            50% { opacity: 0.6; box-shadow: 0 0 8px 2px currentColor; }
+        }
+
+        .stat-pill .label {
+            color: var(--text-muted);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-pill .value {
+            color: var(--text-primary);
+        }
+
+        .stat-pill.rl .dot { background: var(--accent-emerald); color: var(--accent-emerald); }
+        .stat-pill.kg .dot { background: var(--accent-cyan); color: var(--accent-cyan); }
+        .stat-pill.model .dot { background: var(--accent-violet); color: var(--accent-violet); }
+        .stat-pill.reward .dot { background: var(--accent-amber); color: var(--accent-amber); }
+
+        .stat-pill.rl .value { color: var(--accent-emerald); }
+        .stat-pill.kg .value { color: var(--accent-cyan); }
+        .stat-pill.model .value { color: var(--accent-violet); }
+        .stat-pill.reward .value { color: var(--accent-amber); }
+
+        /* Major KG sync highlight */
+        .stat-pill.kg.major {
+            border-color: rgba(34,211,238,0.3);
+            background: rgba(34,211,238,0.08);
+        }
+
+        /* ─── Editor Container ─── */
+        #editor-wrap {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - var(--header-h) - var(--statusbar-h));
         }
 
         #editor {
-            width: 100vw;
-            height: calc(100vh - 29px);
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ─── Bottom Status Bar ─── */
+        #statusbar {
+            height: var(--statusbar-h);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
+            background: var(--bg-surface);
+            border-top: 1px solid var(--border-subtle);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+        }
+
+        .sb-left, .sb-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .sb-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+
+        .sb-item:hover {
+            color: var(--text-secondary);
+        }
+
+        .sb-item svg {
+            width: 12px;
+            height: 12px;
+            opacity: 0.7;
+        }
+
+        #ghost-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        #ghost-indicator.active {
+            color: var(--accent-emerald);
+        }
+
+        #ghost-indicator .spinner {
+            width: 10px;
+            height: 10px;
+            border: 1.5px solid transparent;
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            display: none;
+        }
+
+        #ghost-indicator.loading .spinner {
+            display: block;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ─── Floating Reward Toast ─── */
+        #reward-toast {
+            position: fixed;
+            bottom: 44px;
+            right: 16px;
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            background: rgba(17,24,39,0.92);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            opacity: 0;
+            transform: translateY(8px) scale(0.96);
+            transition: all 0.35s cubic-bezier(0.16,1,0.3,1);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #reward-toast.show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        #reward-toast.positive {
+            border-color: rgba(52,211,153,0.3);
+            color: var(--accent-emerald);
+            box-shadow: 0 4px 24px rgba(52,211,153,0.1);
+        }
+
+        #reward-toast.negative {
+            border-color: rgba(251,113,133,0.3);
+            color: var(--accent-rose);
+            box-shadow: 0 4px 24px rgba(251,113,133,0.1);
+        }
+
+        /* ─── Loading Splash ─── */
+        #splash {
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            background: var(--bg-deep);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+
+        #splash.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .splash-logo {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan), var(--accent-emerald));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+        }
+
+        .splash-loader {
+            width: 140px;
+            height: 3px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .splash-loader::after {
+            content: '';
+            display: block;
+            height: 100%;
+            width: 40%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+            border-radius: 3px;
+            animation: loader-slide 1.2s ease-in-out infinite;
+        }
+
+        @keyframes loader-slide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(350%); }
+        }
+
+        .splash-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
     </style>
 </head>
 
 <body>
-    <div id="bar">
-        <strong>RL policy</strong>
-        <span id="rl-stats">EMA … | trend …</span>
-        <strong>Knowledge graph</strong>
-        <span id="kg-stats">symbols … | last sync …</span>
+    <!-- Splash Screen -->
+    <div id="splash">
+        <div class="splash-logo">CodeComplete</div>
+        <div class="splash-loader"></div>
+        <div class="splash-sub">Initializing RL Engine</div>
     </div>
-    <div id="editor"></div>
+
+    <!-- Header -->
+    <div id="header">
+        <div class="header-left">
+            <div class="logo">
+                <div class="logo-icon">⚡</div>
+                <span class="logo-text">CodeComplete</span>
+                <span class="logo-badge">RL v2</span>
+            </div>
+            <div class="divider"></div>
+            <div class="stat-pill model">
+                <span class="dot pulse"></span>
+                <span class="label">Model</span>
+                <span class="value" id="model-name">Qwen-72B</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="stat-pill rl" id="rl-pill">
+                <span class="dot pulse"></span>
+                <span class="label">RL Policy</span>
+                <span class="value" id="rl-stats">EMA —</span>
+            </div>
+            <div class="stat-pill reward" id="reward-pill">
+                <span class="dot"></span>
+                <span class="label">Reward</span>
+                <span class="value" id="reward-val">—</span>
+            </div>
+            <div class="stat-pill kg" id="kg-pill">
+                <span class="dot pulse"></span>
+                <span class="label">KG</span>
+                <span class="value" id="kg-stats">syncing…</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Editor -->
+    <div id="editor-wrap">
+        <div id="editor"></div>
+    </div>
+
+    <!-- Status Bar -->
+    <div id="statusbar">
+        <div class="sb-left">
+            <div class="sb-item">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zm.93 12.6a.75.75 0 01-1.06 0L4 8.72a.75.75 0 011.06-1.06L8 10.59l4.47-4.47a.75.75 0 011.06 1.06L8.93 12.6z"/></svg>
+                <span id="parse-status">Ready</span>
+            </div>
+            <div class="sb-item">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.75 1a.75.75 0 00-.75.75v3c0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75v-3a.75.75 0 00-.75-.75h-4.5zm.75 3V2.5h3V4h-3zm-2.874 6.78a.75.75 0 011.06.04L7.5 13.94l2.814-3.12a.75.75 0 011.06.04.75.75 0 01-.04 1.06l-3.345 3.71a.75.75 0 01-1.11 0L3.536 11.92a.75.75 0 01.04-1.06z"/></svg>
+                <span>Python</span>
+            </div>
+            <div id="ghost-indicator">
+                <div class="spinner"></div>
+                <span id="ghost-label">Ghost text ready</span>
+            </div>
+        </div>
+        <div class="sb-right">
+            <div class="sb-item" id="cursor-pos">Ln 1, Col 1</div>
+            <div class="sb-item" id="step-count">Steps: 0</div>
+        </div>
+    </div>
+
+    <!-- Reward Toast -->
+    <div id="reward-toast"></div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
     <script>
         require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
         require(['vs/editor/editor.main'], function () {
-            const barRl = document.getElementById('rl-stats');
-            const barKg = document.getElementById('kg-stats');
+
+            /* ── DOM refs ── */
+            const splash        = document.getElementById('splash');
+            const rlStats       = document.getElementById('rl-stats');
+            const rewardVal     = document.getElementById('reward-val');
+            const kgStats       = document.getElementById('kg-stats');
+            const kgPill        = document.getElementById('kg-pill');
+            const parseStatus   = document.getElementById('parse-status');
+            const ghostInd      = document.getElementById('ghost-indicator');
+            const ghostLabel    = document.getElementById('ghost-label');
+            const cursorPos     = document.getElementById('cursor-pos');
+            const stepCount     = document.getElementById('step-count');
+            const rewardToast   = document.getElementById('reward-toast');
 
             let syncTimer = null;
-            let reqGen = 0;
+            let reqGen    = 0;
+            let steps     = 0;
+            let toastTimer = null;
 
+            /* ── Helpers ── */
             function clipGhost(text) {
                 if (!text) return '';
                 const lines = String(text).replace(/\r\n/g, '\n').split('\n');
-                if (lines.length > 4) {
-                    return lines.slice(0, 4).join('\n') + '\n…';
-                }
-                return text;
+                return lines.length > 4 ? lines.slice(0, 4).join('\n') + '\n…' : text;
             }
 
+            function showToast(reward) {
+                if (reward == null) return;
+                const r = parseFloat(reward);
+                rewardToast.textContent = (r >= 0 ? '+' : '') + r.toFixed(2) + ' reward';
+                rewardToast.className = 'show ' + (r >= 0.5 ? 'positive' : r < 0.2 ? 'negative' : '');
+                if (toastTimer) clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => { rewardToast.className = ''; }, 2200);
+            }
+
+            /* ── Knowledge Graph Sync ── */
             async function syncKnowledgeGraph(content) {
                 try {
                     const r = await fetch('/workspace/sync', {
@@ -74,84 +490,171 @@
                         body: JSON.stringify({ content })
                     });
                     const j = await r.json();
-                    const maj = j.major_changed ? 'major refresh ✓' : 'incremental';
-                    const sy = j.symbol_count != null ? j.symbol_count : '—';
-                    barKg.textContent = `symbols ${sy} | ${maj}`;
+                    const sy = j.symbol_count != null ? j.symbol_count : 0;
                     if (j.major_changed) {
-                        barKg.classList.add('kg-major');
+                        kgStats.textContent = sy + ' symbols · refreshed';
+                        kgPill.classList.add('major');
                     } else {
-                        barKg.classList.remove('kg-major');
+                        kgStats.textContent = sy + ' symbols';
+                        kgPill.classList.remove('major');
                     }
+                    parseStatus.textContent = j.valid_parse ? 'Valid' : 'Syntax error';
                 } catch (e) {
-                    barKg.textContent = 'KG sync error';
+                    kgStats.textContent = 'error';
                 }
             }
 
+            /* ── Monaco Editor ── */
+            // Custom dark theme
+            monaco.editor.defineTheme('codecomplete-dark', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'comment', foreground: '6b7280', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'c084fc' },
+                    { token: 'string', foreground: '34d399' },
+                    { token: 'number', foreground: 'fbbf24' },
+                    { token: 'type', foreground: '60a5fa' },
+                    { token: 'delimiter', foreground: '94a3b8' },
+                ],
+                colors: {
+                    'editor.background':                '#0d1117',
+                    'editor.foreground':                '#e2e8f0',
+                    'editor.lineHighlightBackground':   '#1a2332',
+                    'editor.selectionBackground':       '#264f78',
+                    'editorCursor.foreground':           '#60a5fa',
+                    'editorLineNumber.foreground':       '#374151',
+                    'editorLineNumber.activeForeground': '#9ca3af',
+                    'editor.inactiveSelectionBackground':'#1e293b',
+                    'editorIndentGuide.background':      '#1e293b',
+                    'editorIndentGuide.activeBackground': '#334155',
+                    'editorGhostText.foreground':         '#4b6a8a',
+                }
+            });
+
             const editor = monaco.editor.create(document.getElementById('editor'), {
-                value: "# RL code IDE — ghost text from inline policy\n# Edit Python; graph syncs on pause.\n\n",
+                value: [
+                    '# 🚀 CodeComplete — RL-Powered Python IDE',
+                    '# Start typing and watch ghost text appear!',
+                    '',
+                    'def add(a, b):',
+                    '    return ',
+                    '',
+                ].join('\n'),
                 language: 'python',
-                theme: 'vs-dark',
+                theme: 'codecomplete-dark',
                 automaticLayout: true,
+                fontSize: 14,
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontLigatures: true,
+                lineHeight: 22,
+                padding: { top: 16 },
+                minimap: { enabled: true, scale: 1, showSlider: 'mouseover' },
+                scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+                renderLineHighlight: 'all',
+                cursorBlinking: 'smooth',
+                cursorSmoothCaretAnimation: 'on',
+                smoothScrolling: true,
+                bracketPairColorization: { enabled: true },
+                guides: { bracketPairs: true, indentation: true },
                 inlineSuggest: { enabled: true },
                 quickSuggestions: { other: false, comments: false, strings: false },
                 suggestOnTriggerCharacters: false,
                 wordBasedSuggestions: 'off'
             });
+
+            // Initial KG sync
             syncKnowledgeGraph(editor.getValue());
 
+            // KG sync on edit (debounced)
             editor.onDidChangeModelContent(() => {
                 const text = editor.getValue();
                 if (syncTimer) clearTimeout(syncTimer);
                 syncTimer = setTimeout(() => syncKnowledgeGraph(text), 450);
             });
 
+            // Cursor position tracking
+            editor.onDidChangeCursorPosition(e => {
+                cursorPos.textContent = 'Ln ' + e.position.lineNumber + ', Col ' + e.position.column;
+            });
+
+            /* ── Inline Completions Provider ── */
             monaco.languages.registerInlineCompletionsProvider('python', {
                 provideInlineCompletions: async (model, position, context, token) => {
                     const id = ++reqGen;
-                    await new Promise(function (resolve) { setTimeout(resolve, 220); });
+                    ghostInd.className = 'loading';
+                    ghostLabel.textContent = 'Generating…';
+
+                    await new Promise(r => setTimeout(r, 220));
                     if (token.isCancellationRequested || id !== reqGen) {
+                        ghostInd.className = '';
+                        ghostLabel.textContent = 'Ghost text ready';
                         return { items: [] };
                     }
+
                     const offset = model.getOffsetAt(position);
-                    const body = JSON.stringify({
-                        content: model.getValue(),
-                        cursor_offset: offset
-                    });
                     let data;
                     try {
                         const response = await fetch('/predict', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body
+                            body: JSON.stringify({ content: model.getValue(), cursor_offset: offset })
                         });
                         data = await response.json();
                     } catch (e) {
+                        ghostInd.className = '';
+                        ghostLabel.textContent = 'Ghost text ready';
                         return { items: [] };
                     }
+
                     if (token.isCancellationRequested || id !== reqGen) {
+                        ghostInd.className = '';
+                        ghostLabel.textContent = 'Ghost text ready';
                         return { items: [] };
                     }
+
+                    // Update RL stats
                     if (data.rl_ema_reward != null) {
-                        barRl.textContent =
-                            'EMA ' + data.rl_ema_reward +
-                            ' | trend ' + (data.rl_trend != null ? data.rl_trend : '—') +
-                            ' | last R ' + (data.reward != null ? data.reward : '—');
+                        const ema = parseFloat(data.rl_ema_reward).toFixed(3);
+                        const trend = data.rl_trend != null ? parseFloat(data.rl_trend).toFixed(3) : '—';
+                        const arrow = parseFloat(trend) > 0 ? '↑' : parseFloat(trend) < 0 ? '↓' : '→';
+                        rlStats.textContent = ema + ' ' + arrow;
                     }
+
+                    // Update reward
+                    if (data.reward != null) {
+                        rewardVal.textContent = parseFloat(data.reward).toFixed(2);
+                        showToast(data.reward);
+                    }
+
+                    // Update step counter
+                    steps++;
+                    stepCount.textContent = 'Steps: ' + steps;
+
+                    ghostInd.className = 'active';
+                    ghostLabel.textContent = 'Suggestion ready';
+                    setTimeout(() => {
+                        ghostInd.className = '';
+                        ghostLabel.textContent = 'Ghost text ready';
+                    }, 1500);
+
                     const ghost = clipGhost(data.completion || '');
                     if (!ghost) return { items: [] };
+
                     return {
                         items: [{
                             insertText: ghost,
                             range: new monaco.Range(
-                                position.lineNumber,
-                                position.column,
-                                position.lineNumber,
-                                position.column
+                                position.lineNumber, position.column,
+                                position.lineNumber, position.column
                             )
                         }]
                     };
                 }
             });
+
+            /* ── Hide splash ── */
+            setTimeout(() => splash.classList.add('hidden'), 800);
         });
     </script>
 </body>

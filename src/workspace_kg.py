@@ -58,14 +58,14 @@ class WorkspaceKG:
         
         prev = self._struct_sig
         new_sig = _stable_struct_signature(source)
-        line_data = 0
+        line_delta = 0
         
         if self._last_source:
             line_delta = abs(source.count("\n") - self._last_source.count("\n"))
             
-        char_data = abs(len(source) - len(self._last_source))
+        char_delta = abs(len(source) - len(self._last_source))
         
-        major =False
+        major = False
         
         if prev is None:
             major = True
@@ -73,7 +73,7 @@ class WorkspaceKG:
             major = True
         elif line_delta >= max(8, int(0.12 * max(1, self._last_source.count("\n")))):
             major = True
-        elif char_data >= 400:
+        elif char_delta >= 400:
             major = True
         
         self._struct_sig = new_sig
@@ -94,7 +94,7 @@ class WorkspaceKG:
         
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                self._symbols[node.name] = f"fn (line {node.lineno}"
+                self._symbols[node.name] = f"fn (line {node.lineno})"
             elif isinstance(node, ast.ClassDef):
                 self._symbols[node.name] = f"class (line {node.lineno})"
             elif isinstance(node, ast.Import):
@@ -124,7 +124,7 @@ class WorkspaceKG:
             self.update(source)
             
         cur_line = _line_at_offset(source, c_offset)
-        lines = List[str] = []
+        lines: List[str] = []
         
         if self._imports:
             imp = sorted(self._imports)
@@ -153,8 +153,8 @@ class WorkspaceKG:
             )
             
         if len(self._symbols) > 0 and len(lines) < max_items:
-            defs = [f"{n} - {d}" for n, d in self._symbols.items()[:max_items]]
+            defs = [f"{n} - {d}" for n, d in list(self._symbols.items())[:max_items]]
             lines.append(
-                "definations: " + " | ".join(defs[:6])
+                "definitions: " + " | ".join(defs[:6])
             )            
         return lines[:max_items]
