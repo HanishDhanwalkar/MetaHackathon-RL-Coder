@@ -185,7 +185,7 @@
         #sidebar {
             width: var(--sidebar-w);
             background: var(--bg-surface);
-            border-left: 1px solid var(--border-subtle);
+            border-right: 1px solid var(--border-subtle);
             display: flex;
             flex-direction: column;
             padding: 12px;
@@ -384,7 +384,7 @@
         #reward-toast {
             position: fixed;
             bottom: 40px;
-            right: calc(var(--sidebar-w) + 16px);
+            left: calc(var(--sidebar-w) + 16px);
             padding: 6px 12px;
             border-radius: var(--radius-sm);
             font-size: 11px;
@@ -494,11 +494,7 @@
 
     <!-- Main -->
     <div id="main-layout">
-        <div id="editor-wrap">
-            <div id="editor"></div>
-        </div>
-
-        <!-- Right Sidebar -->
+        <!-- Left Sidebar -->
         <div id="sidebar">
             <div class="side-section-label">RL Agent</div>
 
@@ -546,6 +542,10 @@
                 <div class="card-value violet" id="step-val">0</div>
                 <div class="steps-bar" id="steps-chart"></div>
             </div>
+        </div>
+
+        <div id="editor-wrap">
+            <div id="editor"></div>
         </div>
     </div>
 
