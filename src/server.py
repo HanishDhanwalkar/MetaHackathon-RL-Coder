@@ -1,35 +1,61 @@
-from openenv.core.env_server import create_web_interface_app
+import os
+from pathlib import Path
+from pydantic import BaseModel
+
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from openenv.core.env_server import create_fastapi_app
+
+from .code_assist_env import CodeAssistEnv
 from .models import CodeAction, CodeObservation
 
-class CodeAutocompleteEnv:
-    def __init__(self):
-        self.code = ""
-        
-    def reset(self, code_context: str = "") -> CodeObservation:
-        self.code = code_context
-        return CodeObservation(
-            code_context=self.code,
-            kg_context=["Sovereign Project Context"],
-            cursor_position=len(self.code)
-        )
+_root = Path(__file__).parent
+_static = _root / "static"
 
-    def step(self, action: CodeAction):
-        # Apply completion
-        new_text = action.completion
-        self.code += new_text
-        
-        # RL Reward Calculation
-        reward = 0.0
-        try:
-            # Check if the code is syntactically valid
-            compile(self.code, '<string>', 'exec')
-            reward += 1.0
-            # Additional reward for project relevance
-            if "import" in new_text: reward += 0.5
-        except SyntaxError:
-            reward -= 1.0 # Penalty for broken code
-            
-        return self.reset(self.code), reward, True, {}
+app = create_fastapi_app(
+    CodeAssistEnv,
+    CodeAction,
+    CodeObservation
+)
 
-# Compliant with 'openenv validate'
-app = create_web_interface_app(CodeAutocompleteEnv, CodeAction, CodeObservation)
+class IDECpntext(BaseModel):
+    content: str
+    cursor_offset: int | None = None
+    
+class WorkspaceSync(BaseModel):
+    content: str
+    
+@app.get("/", include_in_schema=False)
+async def ide_root():
+    return FileResponse(_root / "static" / "index.html")
+
+@app.post("/workspace/sync")
+async def workspace_sync(data: WorkspaceSync):
+    from inference import sync_workspace
+    return sync_workspace(data.content) 
+
+
+@app.post("/predict")
+async def predict(data: IDECpntext):
+    # Triggers the RL Agent in inference.py
+    from inference import get_completion
+    
+    return get_completion(data.content, data.cursor_offset)
+
+if _static.is_dir():
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(_static)), 
+        name="static"
+    )
+    
+def main() -> None:
+    import uvicorn
+    # Port 7860 is required for HF Spaces
+    port = os.environ.get("PORT", 7860)
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=True)
+    
+if __name__ == "__main__":
+    main()

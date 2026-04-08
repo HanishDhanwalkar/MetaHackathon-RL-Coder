@@ -1,34 +1,153 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-    <title>Sovereign IDE - RL MVP</title>
-    <style>#editor { width: 100vw; height: 100vh; }</style>
+    <meta charset="UTF-8" />
+    <title>Sovereign RL IDE</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            font-family: system-ui, sans-serif;
+        }
+
+        #bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.35rem 0.75rem;
+            font-size: 12px;
+            background: #1e1e1e;
+            color: #c8c8c8;
+            border-bottom: 1px solid #333;
+        }
+
+        #bar strong {
+            color: #7ee787;
+            font-weight: 600;
+        }
+
+        #bar span.kg-major {
+            color: #79c0ff;
+        }
+
+        #editor {
+            width: 100vw;
+            height: calc(100vh - 29px);
+        }
+    </style>
 </head>
+
 <body>
+    <div id="bar">
+        <strong>RL policy</strong>
+        <span id="rl-stats">EMA … | trend …</span>
+        <strong>Knowledge graph</strong>
+        <span id="kg-stats">symbols … | last sync …</span>
+    </div>
     <div id="editor"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
     <script>
         require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
         require(['vs/editor/editor.main'], function () {
+            const barRl = document.getElementById('rl-stats');
+            const barKg = document.getElementById('kg-stats');
+
+            let syncTimer = null;
+            let reqGen = 0;
+
+            function clipGhost(text) {
+                if (!text) return '';
+                const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+                if (lines.length > 4) {
+                    return lines.slice(0, 4).join('\n') + '\n…';
+                }
+                return text;
+            }
+
+            async function syncKnowledgeGraph(content) {
+                try {
+                    const r = await fetch('/workspace/sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content })
+                    });
+                    const j = await r.json();
+                    const maj = j.major_changed ? 'major refresh ✓' : 'incremental';
+                    const sy = j.symbol_count != null ? j.symbol_count : '—';
+                    barKg.textContent = `symbols ${sy} | ${maj}`;
+                    if (j.major_changed) {
+                        barKg.classList.add('kg-major');
+                    } else {
+                        barKg.classList.remove('kg-major');
+                    }
+                } catch (e) {
+                    barKg.textContent = 'KG sync error';
+                }
+            }
+
             const editor = monaco.editor.create(document.getElementById('editor'), {
-                value: "# Sovereign Agentic IDE\n",
+                value: "# RL code IDE — ghost text from inline policy\n# Edit Python; graph syncs on pause.\n\n",
                 language: 'python',
                 theme: 'vs-dark',
-                inlineSuggest: { enabled: true }
+                automaticLayout: true,
+                inlineSuggest: { enabled: true },
+                quickSuggestions: { other: false, comments: false, strings: false },
+                suggestOnTriggerCharacters: false,
+                wordBasedSuggestions: 'off'
+            });
+            syncKnowledgeGraph(editor.getValue());
+
+            editor.onDidChangeModelContent(() => {
+                const text = editor.getValue();
+                if (syncTimer) clearTimeout(syncTimer);
+                syncTimer = setTimeout(() => syncKnowledgeGraph(text), 450);
             });
 
             monaco.languages.registerInlineCompletionsProvider('python', {
-                provideInlineCompletions: async (model, position) => {
-                    const response = await fetch('/predict', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ content: model.getValue() })
+                provideInlineCompletions: async (model, position, context, token) => {
+                    const id = ++reqGen;
+                    await new Promise(function (resolve) { setTimeout(resolve, 220); });
+                    if (token.isCancellationRequested || id !== reqGen) {
+                        return { items: [] };
+                    }
+                    const offset = model.getOffsetAt(position);
+                    const body = JSON.stringify({
+                        content: model.getValue(),
+                        cursor_offset: offset
                     });
-                    const data = await response.json();
+                    let data;
+                    try {
+                        const response = await fetch('/predict', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body
+                        });
+                        data = await response.json();
+                    } catch (e) {
+                        return { items: [] };
+                    }
+                    if (token.isCancellationRequested || id !== reqGen) {
+                        return { items: [] };
+                    }
+                    if (data.rl_ema_reward != null) {
+                        barRl.textContent =
+                            'EMA ' + data.rl_ema_reward +
+                            ' | trend ' + (data.rl_trend != null ? data.rl_trend : '—') +
+                            ' | last R ' + (data.reward != null ? data.reward : '—');
+                    }
+                    const ghost = clipGhost(data.completion || '');
+                    if (!ghost) return { items: [] };
                     return {
                         items: [{
-                            insertText: data.completion,
-                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column)
+                            insertText: ghost,
+                            range: new monaco.Range(
+                                position.lineNumber,
+                                position.column,
+                                position.lineNumber,
+                                position.column
+                            )
                         }]
                     };
                 }
@@ -36,4 +155,5 @@
         });
     </script>
 </body>
+
 </html>
