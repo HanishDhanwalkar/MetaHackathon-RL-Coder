@@ -1,16 +1,14 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies first (layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
 
-# Expose HF Spaces default port
+# Expose ports for OpenEnv and the IDE
 EXPOSE 7860
 
-# Run the FastAPI server
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+# Production start command for HF Spaces
+CMD ["sh", "-c", "uvicorn src.server:app --host 0.0.0.0 --port ${PORT:-7860}"]

@@ -1,255 +1,231 @@
-"""
-Inference script for CodeCompleteEnv.
-
-Runs a baseline LLM agent against all three tasks (easy, medium, hard)
-using the OpenAI-compatible chat completions API.
-
-Environment variables
----------------------
-HF_TOKEN / API_KEY / OPENAI_API_KEY : str
-    API key for the LLM provider.
-API_BASE_URL : str
-    Chat-completions endpoint (default: HuggingFace router).
-MODEL_NAME : str
-    Model identifier (default: Qwen/Qwen2.5-72B-Instruct).
-
-STDOUT format
--------------
-[START] task=<task_name> env=code_complete_env model=<model_name>
-[STEP]  step=<n> action=<string> reward=<0.00> done=<true|false> error=<msg|null>
-[END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...>
-"""
-
-from __future__ import annotations
-
 import os
 import re
 import sys
-import traceback
-from typing import List
 
+from typing import List, Optional, Any
+
+# import ollama  # Commented out: replaced with OpenAI
 from openai import OpenAI
+from dotenv import load_dotenv
+import logging 
 
-from env.environment import CodeCompleteEnv
-from env.models import Action
-from env.tasks import list_tasks
+from src.code_assist_env import CodeAssistEnv
+from src.models import CodeAction, CodeObservation
+from src.rl_agent import RLCompletionAgent
+from src.workspace_kg import WorkspaceKG
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
 
-API_KEY: str = (
-    os.getenv("HF_TOKEN")
-    or os.getenv("API_KEY")
-    or os.getenv("OPENAI_API_KEY")
-    or ""
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
+
+
+client = OpenAI(
+    api_key=HF_TOKEN,
+    base_url=API_BASE_URL,
 )
-API_BASE_URL: str = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME: str = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-BENCHMARK: str = "code_complete_env"
-MAX_STEPS: int = 8
+env = CodeAssistEnv()
+kg = WorkspaceKG()
+policy = RLCompletionAgent()
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def clean_suggests(raw: str) -> str:
+    t = (raw or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```\w*\s*", "", t)
+        t = re.sub(r"\s*```$", "", t)
+    return t
 
-_CODE_BLOCK_RE = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL)
-
-
-def _extract_code(text: str) -> str:
-    """Strip markdown fences if the model wrapped its answer in them."""
-    m = _CODE_BLOCK_RE.search(text)
-    if m:
-        return m.group(1).strip()
-    # Sometimes models return just the code
-    return text.strip()
-
-
-def _oneline(text: str, max_len: int = 120) -> str:
-    """Collapse *text* to a single safe line for stdout logging."""
-    s = text.replace("\n", "\\n").replace("\r", "")
-    if len(s) > max_len:
-        s = s[: max_len - 3] + "..."
-    return s
-
-
-def _build_system_prompt() -> str:
-    return (
-        "You are an expert Python programmer. "
-        "You will be given incomplete Python source code with a cursor "
-        "position and contextual information. Your job is to produce "
-        "the best possible code completion.\n\n"
-        "Rules:\n"
-        "1. Output ONLY the replacement code — no explanations, no markdown.\n"
-        "2. Match the surrounding style (indentation, naming, etc.).\n"
-        "3. Make sure the result is syntactically valid Python.\n"
-    )
-
-
-def _build_user_prompt(obs, task_name: str, task_cfg: dict) -> str:
-    """Build the user-turn prompt from the current observation."""
-    parts: list[str] = []
-
-    # Task instruction
-    if task_cfg.get("cursor_marker"):
-        parts.append(
-            f"Complete the code at the cursor position marked with "
-            f"`{task_cfg['cursor_marker']}` in file `{obs.cursor_file}`.\n"
+def sync_workspace(source: str) -> dict[str, Any]:
+    meta = kg.update(source)
+    return {
+        "major_changed": meta.get("major_changes", False),
+        "symbol_count": meta.get("symbol_count", 0),
+        "import_count": meta.get("import_count", 0),
+        "valid_parse": meta.get("valid_parse", False),
+    }
+    
+def call_llm(
+    prompt: str, 
+    sys_prompt: str,
+    model_name: str,
+    options: dict[str, Any],
+) -> dict[str, Any]:
+    """Call OpenAI-compatible chat completions API (routed via Hugging Face)."""
+    try:
+        res = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=options.get("temperature", 0.2),
+            top_p=options.get("top_p", 0.9),
+            max_tokens=options.get("max_tokens", 100),
         )
+        
+        # Return a dict matching the shape the rest of the code expects
+        return {
+            "message": {"content": res.choices[0].message.content}
+        }
+    except Exception as exc:
+        logger.error("LLM call failed: %s", exc)
+        return {
+            "message": {"content": "pass"}
+        }
+
+def get_completion(
+    context: str,
+    c_offset: Optional[int] = None,
+) -> dict[str, Any]:
+    try:
+        kg_meta = kg.update(context)
+        
+        cur = (
+            c_offset
+            if c_offset is not None
+            else len(context) if context else 0
+        )
+        cur = max(0, min(cur, len(context)))
+        kg_lines = kg.context_lines(context, cur)
+        
+        
+        obs: CodeObservation = env.reset(
+            code_context=context,
+            kg_context=kg_lines,
+            cursor_offset=cur
+        )
+        
+        before = context[:cur]
+        after = context[cur:]
+        
+        kg_block = "\n".join(kg_lines) if kg_lines else "(no graph edges yet)"
+        prompt = (
+            "You are an expert Python developer.\n"
+            "Return only the missing code.\n\n"
+            f"Context:\n{kg_block}\n\n"
+            f"Code:\n{before}\n\n"
+            "Complete:"
+        )
+        
+        response = call_llm(
+            model_name=MODEL_NAME,
+            sys_prompt=policy.sys_msg(),
+            prompt=prompt,
+            options=policy.openai_options(),
+        )
+        
+        suggestion = clean_suggests(response["message"]["content"])
+        out = env.step(CodeAction(completion=suggestion))
+        policy.observe_reward(
+            float(out.reward) if out.reward is not None else 0.0
+        )
+        
+        err = None
+        if out.metadata:
+             err = out.metadata.get("last_action_err")
+             
+        return {
+            "completion": suggestion,
+            "reward": out.reward,
+            "done": out.done,
+            "error": err,
+            "rl_ema_reward": round(policy.ema_reward(), 3),
+            "rl_trend": round(policy.trend(), 3),
+            "kg_major_changed": kg_meta.get("major_changes"),
+            "kg_symbols": kg_meta.get("symbol_count"),
+            "cursor_after_insert": out.cursor_position
+        }
+    except Exception as exc:
+        logger.error("get_completion failed: %s", exc)
+        return {
+            "completion": "pass",
+            "reward": 0.0,
+            "done": False,
+            "error": str(exc),
+            "rl_ema_reward": round(policy.ema_reward(), 3),
+            "rl_trend": round(policy.trend(), 3),
+            "kg_major_changed": False,
+            "kg_symbols": 0,
+            "cursor_after_insert": 0
+        }
+    
+def err_token(msg: str|None)-> str:
+    if msg is None or msg == "":
+        return "null"
     else:
-        # Hard / refactor task
-        refactor = task_cfg.get("refactor_target", {})
-        parts.append(
-            f"Refactor the code below by renaming the function "
-            f"`{refactor.get('old_name', '')}` to "
-            f"`{refactor.get('new_name', '')}` everywhere it appears.\n"
-            f"Output the COMPLETE refactored file — every line.\n"
-        )
-
-    # Source code
-    parts.append("--- source code ---")
-    parts.append(obs.surrounding_code)
-    parts.append("--- end ---\n")
-
-    # KG context
-    if obs.kg_context:
-        parts.append("Relevant code elements:")
-        for item in obs.kg_context:
-            parts.append(
-                f"  - {item['name']} ({item['kind']}): {item['context']}"
-            )
-        parts.append("")
-
-    # Feedback from previous step
-    if obs.step_count > 0:
-        parts.append(
-            f"(This is attempt {obs.step_count + 1}. "
-            f"Previous code was not fully correct — try again.)\n"
-        )
-
-    if task_cfg.get("cursor_marker"):
-        parts.append(
-            "Respond with ONLY the code that replaces "
-            f"`{task_cfg['cursor_marker']}`. No markdown fences."
-        )
-    else:
-        parts.append(
-            "Respond with the COMPLETE refactored source file. "
-            "No markdown fences, no explanations."
-        )
-
-    return "\n".join(parts)
-
-
-# ---------------------------------------------------------------------------
-# Task runner
-# ---------------------------------------------------------------------------
-
-def run_task(task_name: str, client: OpenAI) -> float:
-    """Run a single task and return the best score achieved."""
-    from env.tasks import get_task
-
-    task_cfg = get_task(task_name)
-    env = CodeCompleteEnv(task_name=task_name, max_steps=MAX_STEPS)
-
-    print(f"[START] task={task_name} env={BENCHMARK} model={MODEL_NAME}")
-
-    obs = env.reset()
+        return msg.replace("\n", " ").replace("\r", " ")
+    
+def run_graded_baseline() -> None:
     rewards: List[float] = []
-    done = False
-    step = 0
-    last_error: str | None = None
-
-    while not done and step < MAX_STEPS:
-        step += 1
-
-        # --- LLM call ---------------------------------------------------
-        prompt = _build_user_prompt(obs, task_name, task_cfg)
-        try:
-            response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=[
-                    {"role": "system", "content": _build_system_prompt()},
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=1024,
-                temperature=0.0,
-            )
-            raw = response.choices[0].message.content or ""
-            completion = _extract_code(raw)
-        except Exception as exc:
-            completion = ""
-            last_error = str(exc)
-
-        # --- Environment step -------------------------------------------
-        action = Action(completion=completion)
-        try:
-            obs, reward, done, info = env.step(action)
-            reward_val = reward.total
-            last_error = info.get("error")
-        except Exception as exc:
-            reward_val = 0.0
-            done = True
-            last_error = str(exc)
-
-        rewards.append(reward_val)
-
-        err_str = f"error={last_error}" if last_error else "error=null"
-        print(
-            f"[STEP] step={step} "
-            f"action={_oneline(completion)} "
-            f"reward={reward_val:.2f} "
-            f"done={'true' if done else 'false'} "
-            f"{err_str}"
-        )
-
-    env.close()
-
-    final_score = max(rewards) if rewards else 0.0
-    success = final_score >= 0.7
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    benchmark = "code_assist_env"
     print(
-        f"[END] success={'true' if success else 'false'} "
-        f"steps={step} score={final_score:.2f} rewards={rewards_str}"
+        f"[START] task=graded-tasks env={benchmark} model={MODEL_NAME}",
+        flush=True,
     )
-    return final_score
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-def main() -> None:
-    if not API_KEY:
-        print(
-            "ERROR: No API key found. Set HF_TOKEN, API_KEY, or "
-            "OPENAI_API_KEY.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
-
-    tasks = list_tasks()
-    scores: dict[str, float] = {}
-
-    for task_name in tasks:
-        try:
-            scores[task_name] = run_task(task_name, client)
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            scores[task_name] = 0.0
-            print(
-                f"[END] success=false steps=0 score=0.00 rewards=0.00"
+    step_n = 0
+    envs: List[CodeAssistEnv] = []
+    try:
+        for task_id in ("syntax-line", "import-fix", "docstring-stub"):
+            task_env = CodeAssistEnv()
+            envs.append(task_env)
+            obs = task_env.reset(task_id=task_id)
+            prompt = (
+                f"{obs.task_instruction}\n\n"
+                "Return only text to append to the end of this Python file "
+                "(no markdown fences):\n"
+                f"{obs.code_context}"
             )
+            err_raw: str | None = None
+            suggestion = ""
+            try:
+                response = call_llm(
+                    model_name=MODEL_NAME,
+                    sys_prompt=policy.sys_msg(),
+                    prompt=prompt,
+                    options=policy.openai_options(),
+                )
+                suggestion = clean_suggests(response["message"]["content"])
+            except Exception as exc:
+                err_raw = str(exc)
 
-    print("\n=== Summary ===")
-    for name, score in scores.items():
-        print(f"  {name}: {score:.2f}")
-    avg = sum(scores.values()) / len(scores) if scores else 0.0
-    print(f"  average:  {avg:.2f}")
+            step_obs = task_env.step(CodeAction(completion=suggestion))
+            policy.observe_reward(
+                float(step_obs.reward) if step_obs.reward is not None else 0.0
+            )
+            step_n += 1
+            r = float(step_obs.reward) if step_obs.reward is not None else 0.0
+            rewards.append(r)
+            done_s = str(bool(step_obs.done)).lower()
+            meta_err = None
+            if step_obs.metadata:
+                meta_err = step_obs.metadata.get("last_action_error")
+            combined_err = err_raw or meta_err
+            action_lit = repr(suggestion)
+            print(
+                f"[STEP] step={step_n} action={action_lit} reward={r:.2f} "
+                f"done={done_s} error={err_token(combined_err)}",
+                flush=True,
+            )
+    finally:
+        for e in envs:
+            e.close()
+        ok = bool(rewards) and all(x >= 0.99 for x in rewards)
+        rfmt = ",".join(f"{float(x):.2f}" for x in rewards)
+        print(
+            f"[END] success={str(ok).lower()} steps={step_n} rewards={rfmt}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "baseline":
+        run_graded_baseline()
+    else:
+        print(get_completion("import os\ndef list_files():\n    "))
