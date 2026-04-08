@@ -21,9 +21,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN", "")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1").strip()
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct").strip()
+HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
 
 
 client = OpenAI(
@@ -205,7 +205,10 @@ def run_graded_baseline() -> None:
             done_s = str(bool(step_obs.done)).lower()
             meta_err = None
             if step_obs.metadata:
-                meta_err = step_obs.metadata.get("last_action_error")
+                meta_err = (
+                    step_obs.metadata.get("last_action_err")
+                    or step_obs.metadata.get("last_action_error")
+                )
             combined_err = err_raw or meta_err
             action_lit = repr(suggestion)
             print(
@@ -216,10 +219,14 @@ def run_graded_baseline() -> None:
     finally:
         for e in envs:
             e.close()
-        ok = bool(rewards) and all(x >= 0.99 for x in rewards)
+        score = 0.0
+        if rewards:
+            score = sum(rewards) / len(rewards)
+            score = min(max(score, 0.0), 1.0)
+        ok = bool(rewards) and score >= 0.99
         rfmt = ",".join(f"{float(x):.2f}" for x in rewards)
         print(
-            f"[END] success={str(ok).lower()} steps={step_n} rewards={rfmt}",
+            f"[END] success={str(ok).lower()} steps={step_n} score={score:.2f} rewards={rfmt}",
             flush=True,
         )
 
