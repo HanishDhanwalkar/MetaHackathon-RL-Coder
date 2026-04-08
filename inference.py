@@ -4,10 +4,9 @@ import sys
 
 from typing import List, Optional, Any
 
-# import ollama  # Commented out: replaced with OpenAI
 from openai import OpenAI
 from dotenv import load_dotenv
-import logging 
+import logging
 
 from src.code_assist_env import CodeAssistEnv
 from src.models import CodeAction, CodeObservation
@@ -17,10 +16,12 @@ from src.workspace_kg import WorkspaceKG
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
+# ── Logging goes to stderr ONLY so stdout is clean START/STEP/END ──
+logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger(__name__)
 
 
+# ── Required environment variables (with defaults per guidelines) ──
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN", "")
@@ -155,35 +156,53 @@ def get_completion(
             "kg_symbols": 0,
             "cursor_after_insert": 0
         }
-    
-def err_token(msg: str|None)-> str:
-    if msg is None or msg == "":
+
+
+def _sanitize_error(msg: str | None) -> str:
+    """Return error string with no newlines, or 'null' if empty."""
+    if not msg:
         return "null"
-    else:
-        return msg.replace("\n", " ").replace("\r", " ")
-    
+    return msg.replace("\n", " ").replace("\r", " ")
+
+
+def _sanitize_action(action_str: str) -> str:
+    """Return action on a single line with no embedded newlines."""
+    return action_str.replace("\n", "\\n").replace("\r", "\\r")
+
+
 def run_graded_baseline() -> None:
+    """
+    Execute all 3 graded tasks and emit structured stdout
+    in the exact [START]/[STEP]/[END] format required by the evaluator.
+    """
     rewards: List[float] = []
     benchmark = "code_assist_env"
+
+    # ── [START] ──
     print(
-        f"[START] task=graded-tasks env={benchmark} model={MODEL_NAME}",
+        f"[START] task=code-assist env={benchmark} model={MODEL_NAME}",
         flush=True,
     )
+
     step_n = 0
     envs: List[CodeAssistEnv] = []
+
     try:
         for task_id in ("syntax-line", "import-fix", "docstring-stub"):
             task_env = CodeAssistEnv()
             envs.append(task_env)
             obs = task_env.reset(task_id=task_id)
+
             prompt = (
                 f"{obs.task_instruction}\n\n"
                 "Return only text to append to the end of this Python file "
                 "(no markdown fences):\n"
                 f"{obs.code_context}"
             )
+
             err_raw: str | None = None
             suggestion = ""
+
             try:
                 response = call_llm(
                     model_name=MODEL_NAME,
@@ -199,33 +218,43 @@ def run_graded_baseline() -> None:
             policy.observe_reward(
                 float(step_obs.reward) if step_obs.reward is not None else 0.0
             )
+
             step_n += 1
             r = float(step_obs.reward) if step_obs.reward is not None else 0.0
             rewards.append(r)
             done_s = str(bool(step_obs.done)).lower()
+
+            # Check for error from the environment metadata
             meta_err = None
             if step_obs.metadata:
-                meta_err = step_obs.metadata.get("last_action_error")
+                meta_err = step_obs.metadata.get("last_action_err")
             combined_err = err_raw or meta_err
-            action_lit = repr(suggestion)
+
+            # Format action as a single-line string
+            action_clean = _sanitize_action(suggestion)
+
+            # ── [STEP] ──
             print(
-                f"[STEP] step={step_n} action={action_lit} reward={r:.2f} "
-                f"done={done_s} error={err_token(combined_err)}",
+                f"[STEP] step={step_n} action={action_clean} "
+                f"reward={r:.2f} done={done_s} "
+                f"error={_sanitize_error(combined_err)}",
                 flush=True,
             )
+
     finally:
         for e in envs:
             e.close()
+
         ok = bool(rewards) and all(x >= 0.99 for x in rewards)
         rfmt = ",".join(f"{float(x):.2f}" for x in rewards)
+
+        # ── [END] ──
         print(
             f"[END] success={str(ok).lower()} steps={step_n} rewards={rfmt}",
             flush=True,
         )
 
 
+# ── Default entrypoint: evaluator runs `python inference.py` ──
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "baseline":
-        run_graded_baseline()
-    else:
-        print(get_completion("import os\ndef list_files():\n    "))
+    run_graded_baseline()
