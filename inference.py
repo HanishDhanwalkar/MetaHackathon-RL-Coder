@@ -23,7 +23,16 @@ logger = logging.getLogger(__name__)
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1").strip()
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct").strip()
-HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
+HF_TOKEN = (
+    os.getenv("HF_TOKEN", "").strip()
+    or os.getenv("OPENAI_API_KEY", "").strip()
+    or os.getenv("HUGGINGFACEHUB_API_TOKEN", "").strip()
+)
+
+if HF_TOKEN == "":
+    logger.warning(
+        "No API token found. Set HF_TOKEN (preferred) or OPENAI_API_KEY."
+    )
 
 
 client = OpenAI(
