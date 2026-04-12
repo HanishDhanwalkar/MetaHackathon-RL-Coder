@@ -762,9 +762,8 @@
                 provideInlineCompletions: async (model, position, context, token) => {
                     const id = ++reqGen;
                     ghostInd.className = 'loading';
-                    ghostLabel.textContent = 'Thinking…';
+                    ghostLabel.textContent = 'Fetching…';
 
-                    await new Promise(r => setTimeout(r, 200));
                     if (token.isCancellationRequested || id !== reqGen) {
                         ghostInd.className = '';
                         ghostLabel.textContent = 'Ghost text ready';
@@ -816,22 +815,40 @@
                     stepVal.textContent = steps;
 
                     ghostInd.className = 'active';
-                    ghostLabel.textContent = 'Suggestion ready';
+                    if (data.billing_error) {
+                        ghostLabel.textContent = 'Credits exhausted — local hints only (Tab accepts)';
+                        ghostLabel.style.color = 'var(--accent-rose)';
+                    } else if (data.source === 'heuristic') {
+                        ghostLabel.textContent = 'Local hint (Tab accepts · Esc dismisses)';
+                        ghostLabel.style.color = 'var(--accent-amber)';
+                    } else {
+                        ghostLabel.textContent = 'Tab accepts · Esc dismisses';
+                        ghostLabel.style.color = '';
+                    }
                     setTimeout(() => {
                         ghostInd.className = '';
                         ghostLabel.textContent = 'Ghost text ready';
-                    }, 1200);
+                        ghostLabel.style.color = '';
+                    }, 1800);
 
                     const ghost = clipGhost(data.completion || '');
                     if (!ghost) return { items: [] };
 
+                    const del = Math.max(0, parseInt(data.delete_after, 10) || 0);
+                    let endPos = position;
+                    if (del > 0) {
+                        const endOff = Math.min(model.getValue().length, offset + del);
+                        endPos = model.getPositionAt(endOff);
+                    }
+                    const range = new monaco.Range(
+                        position.lineNumber, position.column,
+                        endPos.lineNumber, endPos.column
+                    );
+
                     return {
                         items: [{
                             insertText: ghost,
-                            range: new monaco.Range(
-                                position.lineNumber, position.column,
-                                position.lineNumber, position.column
-                            )
+                            range
                         }]
                     };
                 }
