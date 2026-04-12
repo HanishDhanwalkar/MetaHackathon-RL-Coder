@@ -8,7 +8,6 @@ tags:
   - code-assist
   - rl
 
-# ≥3 tasks; each must bind a grader (string id + mapping for strict parsers).
 tasks:
   - id: syntax-line
     name: syntax-line
@@ -46,7 +45,6 @@ tasks:
         type: deterministic
         implementation: CodeAssistEnv._grade_docstring
 
-# Standalone grader registry (some validators count this list).
 graders:
   - id: grade_syntax_line
     task_id: syntax-line
@@ -58,8 +56,29 @@ graders:
     task_id: docstring-stub
     type: deterministic
 
+observation_space:
+  type: CodeObservation
+  fields:
+    code_context: "Current editor buffer content (str)"
+    kg_context: "Knowledge Graph hints relevant to cursor position (list[str])"
+    cursor_position: "Current cursor offset in the buffer (int)"
+    task_id: "Active task identifier or 'freeform' (str)"
+    task_instruction: "Human-readable objective for the current task (str)"
+    reward: "Reward from the last step (float, 0.0–1.0)"
+    done: "Whether the episode has ended (bool)"
+
+action_space:
+  type: CodeAction
+  fields:
+    completion: "The code string to insert at the cursor position (str)"
+
 endpoints:
   reset: POST /reset
   step: POST /step
   state: GET /state
   tasks: GET /tasks
+
+infrastructure:
+  framework: FastAPI
+  server: uvicorn
+  port: 7860
