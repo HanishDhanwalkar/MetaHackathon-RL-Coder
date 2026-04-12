@@ -1,5 +1,41 @@
 name: "CRA-Environment"
 version: "1.0.0"
-description: "Contextual Reinforcement Autocomplete"
-entrypoint: "src.server:app"  # Points to the FastAPI app
+description: "Contextual Reinforcement Autocomplete — code completion with KG hints and deterministic per-task graders."
+entrypoint: "src.server:app"
 runtime: fastapi
+tags:
+  - openenv
+  - code-assist
+  - rl
+
+# At least three tasks with explicit grader identifiers (see CodeAssistEnv._grade_*).
+tasks:
+  - id: syntax-line
+    name: syntax-line
+    description: "Finish the line so the module is valid Python (balanced parentheses)."
+    difficulty: easy
+    max_steps: 100
+    score_range: [0.0, 1.0]
+    grader: grade_syntax_line
+
+  - id: import-fix
+    name: import-fix
+    description: "Add the missing import so the file runs."
+    difficulty: medium
+    max_steps: 100
+    score_range: [0.0, 1.0]
+    grader: grade_import_fix
+
+  - id: docstring-stub
+    name: docstring-stub
+    description: "Give the function a docstring and a body with a return statement."
+    difficulty: hard
+    max_steps: 100
+    score_range: [0.0, 1.0]
+    grader: grade_docstring_stub
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  tasks: GET /tasks

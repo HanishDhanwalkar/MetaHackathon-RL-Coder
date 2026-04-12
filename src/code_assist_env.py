@@ -38,6 +38,29 @@ TASK_LIBRARY = {
 }
 
 
+def graded_tasks_manifest() -> list[dict[str, Any]]:
+    """Stable task + grader metadata for validators and GET /tasks."""
+    out: list[dict[str, Any]] = []
+    for task_id, cfg in TASK_LIBRARY.items():
+        grader = {
+            "syntax-line": "grade_syntax_line",
+            "import-fix": "grade_import_fix",
+            "docstring-stub": "grade_docstring_stub",
+        }.get(task_id, "grade_unknown")
+        out.append(
+            {
+                "id": task_id,
+                "name": task_id,
+                "description": cfg["instruction"],
+                "difficulty": cfg["difficulty"],
+                "max_steps": MAX_STEPS,
+                "score_range": [0.0, 1.0],
+                "grader": grader,
+            }
+        )
+    return out
+
+
 class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
 
     SUPPORTS_CONCURRENT_SESSIONS = False
