@@ -15,6 +15,7 @@ _root = Path(__file__).parent
 _repo_root = _root.parent
 _static = _repo_root / "static"
 _openenv_yaml = _repo_root / "openenv.yaml"
+_tasks_manifest_json = _repo_root / "tasks_manifest.json"
 
 app = create_fastapi_app(
     CodeAssistEnv,
@@ -57,12 +58,18 @@ def _tasks_payload() -> dict:
         "graders": graders,
         "task_count": len(tasks),
         "grader_count": len(graders),
-        "tasks_with_graders": sum(
-            1
-            for t in tasks
-            if t.get("grader") or (isinstance(t.get("graders"), list) and len(t["graders"]) > 0)
-        ),
+        "tasks_with_graders": sum(1 for t in tasks if _task_has_grader(t)),
     }
+
+
+def _task_has_grader(t: dict) -> bool:
+    g = t.get("grader")
+    if isinstance(g, dict) and g.get("id"):
+        return True
+    if isinstance(g, str) and g.strip():
+        return True
+    graders = t.get("graders")
+    return isinstance(graders, list) and len(graders) > 0
 
 
 @app.get("/tasks", include_in_schema=True)
@@ -85,6 +92,26 @@ async def serve_openenv_yaml():
 
         raise HTTPException(status_code=404, detail="openenv.yaml not found")
     return FileResponse(_openenv_yaml, media_type="application/yaml")
+
+
+@app.get("/tasks_manifest.json", include_in_schema=True)
+async def serve_tasks_manifest_json():
+    """Static JSON manifest (validators that only read JSON, not YAML)."""
+    if not _tasks_manifest_json.is_file():
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="tasks_manifest.json not found")
+    return FileResponse(_tasks_manifest_json, media_type="application/json")
+
+
+@app.get("/api/tasks", include_in_schema=True)
+async def api_tasks_alias():
+    return _tasks_payload()
+
+
+@app.get("/v1/tasks", include_in_schema=True)
+async def v1_tasks_alias():
+    return _tasks_payload()
 
 if _static.is_dir():
     app.mount(

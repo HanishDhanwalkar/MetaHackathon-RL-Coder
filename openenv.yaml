@@ -23,7 +23,10 @@ tasks:
     score_range: [0.0, 1.0]
     graded: true
     programmatic_grader: true
-    grader: grade_syntax_line
+    grader:
+      id: grade_syntax_line
+      type: deterministic
+      enabled: true
     graders:
       - id: grade_syntax_line
         type: deterministic
@@ -39,7 +42,10 @@ tasks:
     score_range: [0.0, 1.0]
     graded: true
     programmatic_grader: true
-    grader: grade_import_fix
+    grader:
+      id: grade_import_fix
+      type: deterministic
+      enabled: true
     graders:
       - id: grade_import_fix
         type: deterministic
@@ -55,7 +61,10 @@ tasks:
     score_range: [0.0, 1.0]
     graded: true
     programmatic_grader: true
-    grader: grade_docstring_stub
+    grader:
+      id: grade_docstring_stub
+      type: deterministic
+      enabled: true
     graders:
       - id: grade_docstring_stub
         type: deterministic
@@ -99,6 +108,9 @@ endpoints:
   tasks: GET /tasks
   manifest_tasks: GET /manifest/tasks
   openenv_yaml: GET /openenv.yaml
+  tasks_manifest_json: GET /tasks_manifest.json
+  api_tasks: GET /api/tasks
+  v1_tasks: GET /v1/tasks
 
 infrastructure:
   framework: FastAPI

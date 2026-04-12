@@ -42,11 +42,16 @@ def graded_tasks_manifest() -> list[dict[str, Any]]:
     """Stable task + grader metadata for validators and GET /tasks."""
     out: list[dict[str, Any]] = []
     for task_id, cfg in TASK_LIBRARY.items():
-        grader = {
+        grader_id = {
             "syntax-line": "grade_syntax_line",
             "import-fix": "grade_import_fix",
             "docstring-stub": "grade_docstring_stub",
         }.get(task_id, "grade_unknown")
+        grader_obj = {
+            "id": grader_id,
+            "type": "deterministic",
+            "enabled": True,
+        }
         out.append(
             {
                 "id": task_id,
@@ -58,10 +63,11 @@ def graded_tasks_manifest() -> list[dict[str, Any]]:
                 "score_range": [0.0, 1.0],
                 "graded": True,
                 "programmatic_grader": True,
-                "grader": grader,
+                "grader": grader_obj,
+                "grader_id": grader_id,
                 "graders": [
                     {
-                        "id": grader,
+                        "id": grader_id,
                         "type": "deterministic",
                         "enabled": True,
                         "task_id": task_id,

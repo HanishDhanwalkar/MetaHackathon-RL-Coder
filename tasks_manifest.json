@@ -1,0 +1,83 @@
+{
+  "spec_version": 1,
+  "environment": "CRA-Environment",
+  "tasks": [
+    {
+      "id": "syntax-line",
+      "name": "syntax-line",
+      "difficulty": "easy",
+      "description": "Finish the line so the module is valid Python (balanced parentheses).",
+      "grader": {
+        "id": "grade_syntax_line",
+        "type": "deterministic",
+        "enabled": true
+      },
+      "graders": [
+        {
+          "id": "grade_syntax_line",
+          "type": "deterministic",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "import-fix",
+      "name": "import-fix",
+      "difficulty": "medium",
+      "description": "Add the missing import so the file runs.",
+      "grader": {
+        "id": "grade_import_fix",
+        "type": "deterministic",
+        "enabled": true
+      },
+      "graders": [
+        {
+          "id": "grade_import_fix",
+          "type": "deterministic",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "docstring-stub",
+      "name": "docstring-stub",
+      "difficulty": "hard",
+      "description": "Give the function a docstring and a body with a return statement.",
+      "grader": {
+        "id": "grade_docstring_stub",
+        "type": "deterministic",
+        "enabled": true
+      },
+      "graders": [
+        {
+          "id": "grade_docstring_stub",
+          "type": "deterministic",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "graders": [
+    {
+      "id": "grade_syntax_line",
+      "task_id": "syntax-line",
+      "type": "deterministic",
+      "enabled": true
+    },
+    {
+      "id": "grade_import_fix",
+      "task_id": "import-fix",
+      "type": "deterministic",
+      "enabled": true
+    },
+    {
+      "id": "grade_docstring_stub",
+      "task_id": "docstring-stub",
+      "type": "deterministic",
+      "enabled": true
+    }
+  ],
+  "task_count": 3,
+  "grader_count": 3,
+  "tasks_with_graders": 3
+}
