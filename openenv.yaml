@@ -8,7 +8,7 @@ tags:
   - code-assist
   - rl
 
-# At least three tasks with explicit grader identifiers (see CodeAssistEnv._grade_*).
+# ≥3 tasks; each must bind a grader (string id + mapping for strict parsers).
 tasks:
   - id: syntax-line
     name: syntax-line
@@ -17,6 +17,10 @@ tasks:
     max_steps: 100
     score_range: [0.0, 1.0]
     grader: grade_syntax_line
+    graders:
+      - id: grade_syntax_line
+        type: deterministic
+        implementation: CodeAssistEnv._grade_syntax_line
 
   - id: import-fix
     name: import-fix
@@ -25,6 +29,10 @@ tasks:
     max_steps: 100
     score_range: [0.0, 1.0]
     grader: grade_import_fix
+    graders:
+      - id: grade_import_fix
+        type: deterministic
+        implementation: CodeAssistEnv._grade_import_fix
 
   - id: docstring-stub
     name: docstring-stub
@@ -33,6 +41,22 @@ tasks:
     max_steps: 100
     score_range: [0.0, 1.0]
     grader: grade_docstring_stub
+    graders:
+      - id: grade_docstring_stub
+        type: deterministic
+        implementation: CodeAssistEnv._grade_docstring
+
+# Standalone grader registry (some validators count this list).
+graders:
+  - id: grade_syntax_line
+    task_id: syntax-line
+    type: deterministic
+  - id: grade_import_fix
+    task_id: import-fix
+    type: deterministic
+  - id: grade_docstring_stub
+    task_id: docstring-stub
+    type: deterministic
 
 endpoints:
   reset: POST /reset

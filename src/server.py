@@ -48,9 +48,16 @@ async def predict(data: IDECpntext):
 @app.get("/tasks", include_in_schema=True)
 async def list_graded_tasks():
     """Expose ≥3 graded tasks for automated submission validation."""
-    from .code_assist_env import graded_tasks_manifest
+    from .code_assist_env import graded_tasks_manifest, graders_registry
 
-    return {"tasks": graded_tasks_manifest(), "count": len(graded_tasks_manifest())}
+    tasks = graded_tasks_manifest()
+    graders = graders_registry()
+    return {
+        "tasks": tasks,
+        "graders": graders,
+        "task_count": len(tasks),
+        "grader_count": len(graders),
+    }
 
 if _static.is_dir():
     app.mount(

@@ -56,9 +56,37 @@ def graded_tasks_manifest() -> list[dict[str, Any]]:
                 "max_steps": MAX_STEPS,
                 "score_range": [0.0, 1.0],
                 "grader": grader,
+                "graders": [
+                    {
+                        "id": grader,
+                        "type": "deterministic",
+                        "task_id": task_id,
+                    }
+                ],
             }
         )
     return out
+
+
+def graders_registry() -> list[dict[str, Any]]:
+    """Top-level grader list for validators that count graders separately."""
+    return [
+        {
+            "id": "grade_syntax_line",
+            "task_id": "syntax-line",
+            "type": "deterministic",
+        },
+        {
+            "id": "grade_import_fix",
+            "task_id": "import-fix",
+            "type": "deterministic",
+        },
+        {
+            "id": "grade_docstring_stub",
+            "task_id": "docstring-stub",
+            "type": "deterministic",
+        },
+    ]
 
 
 class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
@@ -204,7 +232,7 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
         elif self._active_task == "import-fix":
             return self._grade_import_fix()
         elif self._active_task == "docstring-stub":
-            return self._grade_docstring()
+            return self._grade_docstring_stub()
         else:
             return self._grade_freeform()
 
@@ -240,7 +268,7 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
             pass
         return min(1.0, score)
 
-    def _grade_docstring(self):
+    def _grade_docstring_stub(self):
         score = 0.0
         try:
             tree = ast.parse(self._code)
