@@ -50,16 +50,20 @@ def graded_tasks_manifest() -> list[dict[str, Any]]:
         out.append(
             {
                 "id": task_id,
+                "task_id": task_id,
                 "name": task_id,
                 "description": cfg["instruction"],
                 "difficulty": cfg["difficulty"],
                 "max_steps": MAX_STEPS,
                 "score_range": [0.0, 1.0],
+                "graded": True,
+                "programmatic_grader": True,
                 "grader": grader,
                 "graders": [
                     {
                         "id": grader,
                         "type": "deterministic",
+                        "enabled": True,
                         "task_id": task_id,
                     }
                 ],
@@ -75,16 +79,19 @@ def graders_registry() -> list[dict[str, Any]]:
             "id": "grade_syntax_line",
             "task_id": "syntax-line",
             "type": "deterministic",
+            "enabled": True,
         },
         {
             "id": "grade_import_fix",
             "task_id": "import-fix",
             "type": "deterministic",
+            "enabled": True,
         },
         {
             "id": "grade_docstring_stub",
             "task_id": "docstring-stub",
             "type": "deterministic",
+            "enabled": True,
         },
     ]
 
@@ -267,6 +274,10 @@ class CodeAssistEnv(Environment[CodeAction, CodeObservation, CodeState]):
         except SyntaxError:
             pass
         return min(1.0, score)
+
+    def _grade_docstring(self) -> float:
+        """Alias for YAML `implementation: CodeAssistEnv._grade_docstring` compatibility."""
+        return self._grade_docstring_stub()
 
     def _grade_docstring_stub(self):
         score = 0.0

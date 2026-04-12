@@ -34,6 +34,8 @@ All graders are deterministic and return a float score in `[0.0, 1.0]`.
 | `/step` | POST | Take a step with an action |
 | `/state` | GET | Get the current state |
 | `/tasks` | GET | List all tasks with grader metadata |
+| `/manifest/tasks` | GET | Same manifest as `/tasks` (validator alias) |
+| `/openenv.yaml` | GET | Raw `openenv.yaml` from the repo |
 | `/health` | GET | Health check |
 
 ## Running Locally
