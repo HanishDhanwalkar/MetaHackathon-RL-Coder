@@ -24,7 +24,7 @@ logging.getLogger("openai").setLevel(logging.WARNING)
 
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1").strip()
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct").strip()
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen3-Coder-Next").strip()
 HF_TOKEN = (
     os.getenv("HF_TOKEN", "").strip()
     or os.getenv("OPENAI_API_KEY", "").strip()
