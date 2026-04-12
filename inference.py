@@ -243,7 +243,9 @@ def run_graded_baseline() -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "baseline":
-        run_graded_baseline()
-    else:
+    # Evaluator runs `python inference.py` with no args — must emit
+    # [START] / [STEP] / [END] on stdout only.
+    if len(sys.argv) > 1 and sys.argv[1] == "preview":
         print(get_completion("import os\ndef list_files():\n    "))
+    else:
+        run_graded_baseline()
