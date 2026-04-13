@@ -14,7 +14,7 @@ pinned: false
 
 Contextual Reinforcement Autocomplete — an RL-powered code completion environment with Knowledge Graph hints and deterministic per-task graders.
 
-Built for the **Meta PyTorch OpenEnv Hackathon x Scaler School of Technology**, Round 1.
+
 
 ## Tasks
 
